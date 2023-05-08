@@ -2,11 +2,13 @@
 members = [
     "common",
     "consumer",
+    "platforms/android/rust",
     "platforms/macos",
     "platforms/unix",
     "platforms/windows",
     "platforms/winit",
     "bindings/c",
+    "platforms/android/examples/hello_world",
 ]
 default-members = [
     "common",
