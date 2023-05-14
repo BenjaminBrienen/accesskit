@@ -1,18 +1,26 @@
+/**
+ * Copyright 2023 The AccessKit Authors. All rights reserved.
+ * Licensed under the Apache License, Version 2.0 (found in
+ * the LICENSE-APACHE file) or the MIT license (found in
+ * the LICENSE-MIT file), at your option.
+ */
+
 package dev.accesskit.AccessKit;
 
 import android.os.Bundle;
+import android.view.accessibility.AccessibilityNodeProvider;
 import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.core.view.accessibility.AccessibilityNodeProviderCompat;
 import androidx.core.view.AccessibilityDelegateCompat;
 
-public final class AccessibilityDelegate extends AccessibilityDelegateCompat {
+public final class AccessibilityDelegate extends View.AccessibilityDelegate {
     private AccessibilityNodeProviderCompat provider;
-    private long ptr;
+    private long context;
     
     @Override
-    public AccessibilityNodeProviderCompat getAccessibilityNodeProvider(View host) {
+    public AccessibilityNodeProvider getAccessibilityNodeProvider(View host) {
         if (this.provider == null) {
             this.provider = new AccessibilityNodeProviderCompat() {
                 @Override
@@ -21,11 +29,12 @@ public final class AccessibilityDelegate extends AccessibilityDelegateCompat {
                     AccessibilityNodeInfoCompat node = null;
                     if (virtualViewId == AccessibilityNodeProviderCompat.HOST_VIEW_ID) {
                         node = AccessibilityNodeInfoCompat.obtain(host);
-                        onInitializeAccessibilityNodeInfo(host, node);
+                        onInitializeAccessibilityNodeInfo(host, node.unwrap());
                     } else {
                         node = AccessibilityNodeInfoCompat.obtain(host, virtualViewId);
                         node.setPackageName(host.getContext().getPackageName());
                     }
+                    populateAccessibilityNodeInfo(context, host, node, virtualViewId);
                     return node;
                 }
 
@@ -37,6 +46,9 @@ public final class AccessibilityDelegate extends AccessibilityDelegateCompat {
                 }
             };
         }
-        return this.provider;
+        
+        return (AccessibilityNodeProvider)this.provider.getProvider();
     }
+    
+    private static native AccessibilityNodeInfoCompat populateAccessibilityNodeInfo(long context, View host, AccessibilityNodeInfoCompat node, int virtualViewId);
 }

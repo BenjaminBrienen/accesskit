@@ -35,6 +35,7 @@ dependencies = [
  "accesskit_consumer",
  "jni",
  "lazy_static",
+ "paste",
 ]
 
 [[package]]
@@ -781,11 +782,11 @@ checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 name = "hello_world"
 version = "0.1.0"
 dependencies = [
+ "accesskit",
  "accesskit_android",
  "android_logger",
  "jni",
  "log",
- "pollster",
  "winit",
 ]
 
@@ -1202,12 +1203,6 @@ dependencies = [
  "pin-project-lite",
  "windows-sys 0.45.0",
 ]
-
-[[package]]
-name = "pollster"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5da3b0203fd7ee5720aa0b5e790b591aa5d3f41c3ed2c34a3a393382198af2f7"
 
 [[package]]
 name = "ppv-lite86"
