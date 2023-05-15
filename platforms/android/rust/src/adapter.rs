@@ -12,7 +12,7 @@ use accesskit_consumer::Tree;
 use jni::{
     errors::Result,
     objects::{JClass, JObject},
-    sys::{jboolean, jint, jlong, jobject, JNI_FALSE, JNI_TRUE},
+    sys::{jboolean, jobject, JNI_FALSE, JNI_TRUE},
     JNIEnv,
 };
 use std::sync::Arc;
@@ -63,20 +63,4 @@ pub extern "C" fn Java_dev_accesskit_AccessKit_Adapter_initialize<'local>(
         }
         _ => JNI_FALSE,
     }
-}
-
-#[no_mangle]
-pub extern "C" fn Java_dev_accesskit_AccessKit_AccessibilityDelegate_populateAccessibilityNodeInfo<
-    'local,
->(
-    env: JNIEnv<'local>,
-    _: JClass<'local>,
-    context: jlong,
-    host: JObject<'local>,
-    node: JObject<'local>,
-    virtual_view_id: jint,
-) -> jobject {
-    let context = unsafe { Context::from_jni(context) };
-
-    node.into_raw()
 }

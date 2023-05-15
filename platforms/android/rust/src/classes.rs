@@ -21,6 +21,7 @@ macro_rules! java_class {
     ) => {
         paste::paste! {
             #[derive(Clone)]
+            #[allow(dead_code)]
             #[allow(non_snake_case)]
             pub(crate) struct $class_name {
                 class: jni::objects::GlobalRef,
@@ -152,6 +153,15 @@ java_class! {
     package "androidx/core/view/accessibility";
 
     class AccessibilityNodeInfoCompat {
+        method "V" addChild("Landroid/view/View;" view, "I" virtual_descendant_id,);
+        method "V" setCheckable("Z" checkable,);
+        method "V" setChecked("Z" checked,);
+        method "V" setEnabled("Z" enabled,);
+        method "V" setFocusable("Z" focusable,);
+        method "V" setFocused("Z" focused,);
+        method "V" setParent("Landroid/view/View;" view, "I" virtual_descendant_id,);
+        method "V" setPassword("Z" password,);
+        method "V" setSelected("Z" selected,);
         method "V" setText("Ljava/lang/CharSequence;" text,);
     }
 }
