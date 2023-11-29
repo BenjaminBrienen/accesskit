@@ -14,9 +14,7 @@ edition = "2021"
 features = ["winit/rwh_06", "winit/x11", "winit/wayland"]
 
 [features]
-default = ["accesskit_unix", "async-io"]
-async-io = ["accesskit_unix/async-io"]
-tokio = ["accesskit_unix/tokio"]
+default = ["accesskit_unix"]
 
 [dependencies]
 accesskit = { version = "0.12.1", path = "../../common" }
@@ -29,7 +27,7 @@ accesskit_windows = { version = "0.15.1", path = "../windows" }
 accesskit_macos = { version = "0.10.1", path = "../macos" }
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-accesskit_unix = { version = "0.6.1", path = "../unix", optional = true, default-features = false }
+accesskit_unix = { package = "accesskit_unix2", version = "0.1.0", path = "../../platforms/unix2", optional = true }
 
 [dev-dependencies.winit]
 version = "0.29"

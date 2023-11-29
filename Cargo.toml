@@ -5,6 +5,7 @@ members = [
     "consumer",
     "platforms/macos",
     "platforms/unix",
+    "platforms/unix2",
     "platforms/windows",
     "platforms/winit",
     "bindings/c",

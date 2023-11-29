@@ -1,0 +1,23 @@
+[package]
+name = "accesskit_unix2"
+version = "0.1.0"
+authors = ["Matt Campbell <mattcampbell@pobox.com>"]
+license = "MIT OR Apache-2.0"
+description = "AccessKit UI accessibility infrastructure: new Unix adapter"
+categories = ["gui"]
+keywords = ["gui", "ui", "accessibility"]
+repository = "https://github.com/AccessKit/accesskit"
+readme = "README.md"
+edition = "2021"
+
+[dependencies]
+accesskit = { version = "0.12.1", path = "../../common", features = ["serde"] }
+accesskit_consumer = { version = "0.16.1", path = "../../consumer" }
+async-executor = "1.5.0"
+async-io = "2.2.1"
+async-net = "2.0.0"
+futures-channel = { version = "0.3.29", features = ["sink"] }
+futures-lite = "2.0.1"
+futures-util = { version = "0.3.29", features = ["sink"] }
+rustix = { version = "0.38.25", features = ["net"] }
+serde_json = "1"
