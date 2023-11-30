@@ -32,7 +32,8 @@ async fn tree_stream_task(
     tree_update_txs: Rc<RefCell<Vec<mpsc::UnboundedSender<Rc<Vec<u8>>>>>>,
 ) {
     let initial_update = tree.borrow().state().serialize();
-    let serialized = serde_json::to_vec(&initial_update).unwrap();
+    let mut serialized = serde_json::to_vec(&initial_update).unwrap();
+    serialized.extend(b"\r\n");
 
     if stream.write_all(&serialized).await.is_err() {
         return;
@@ -130,7 +131,9 @@ fn adapter_thread(
 
     let handle_tree_updates = async {
         while let Some(update) = tree_update_rx.next().await {
-            let serialized = Rc::new(serde_json::to_vec(&update).unwrap());
+            let mut serialized = serde_json::to_vec(&update).unwrap();
+            serialized.extend(b"\r\n");
+            let serialized = Rc::new(serialized);
             tree.borrow_mut().update(update);
             for tx in tree_update_txs.borrow().iter() {
                 tx.unbounded_send(Rc::clone(&serialized)).unwrap();
