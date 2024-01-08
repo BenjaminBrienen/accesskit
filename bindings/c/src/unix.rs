@@ -8,7 +8,7 @@ use crate::{
     BoxCastPtr, CastPtr,
 };
 use accesskit::Rect;
-use accesskit_unix::Adapter;
+use accesskit_unix2::Adapter;
 use std::os::raw::c_void;
 
 pub struct unix_adapter {
@@ -26,7 +26,9 @@ impl unix_adapter {
     ///
     /// `source` can be called from any thread.
     #[no_mangle]
-    pub extern "C" fn accesskit_unix_adapter_new(
+    pub unsafe extern "C" fn accesskit_unix_adapter_new(
+        display: *mut c_void,
+        surface: *mut c_void,
         source: tree_update_factory,
         source_userdata: *mut c_void,
         handler: *mut action_handler,
@@ -34,7 +36,12 @@ impl unix_adapter {
         let source = source.unwrap();
         let source_userdata = tree_update_factory_userdata(source_userdata);
         let handler = box_from_ptr(handler);
-        let adapter = Adapter::new(move || *box_from_ptr(source(source_userdata)), handler);
+        let adapter = Adapter::new(
+            display,
+            surface,
+            move || *box_from_ptr(source(source_userdata)),
+            handler,
+        );
         BoxCastPtr::to_mut_ptr(adapter)
     }
 
