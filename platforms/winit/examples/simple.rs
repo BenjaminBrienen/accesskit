@@ -139,7 +139,7 @@ fn main() -> Result<(), impl std::error::Error> {
     #[cfg(target_os = "windows")]
     println!("Enable Narrator with [Win]+[Ctrl]+[Enter] (or [Win]+[Enter] on older versions of Windows).");
     #[cfg(all(
-        feature = "accesskit_unix",
+        feature = "accesskit_unix2",
         any(
             target_os = "linux",
             target_os = "dragonfly",

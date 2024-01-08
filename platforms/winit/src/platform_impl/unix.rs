@@ -2,9 +2,14 @@
 // Licensed under the Apache License, Version 2.0 (found in
 // the LICENSE-APACHE file).
 
-use accesskit::{ActionHandler, Rect, TreeUpdate};
-use accesskit_unix::Adapter as UnixAdapter;
+use accesskit::{ActionHandler, TreeUpdate};
+use accesskit_unix2::Adapter as UnixAdapter;
 use winit::{event::WindowEvent, window::Window};
+
+#[cfg(feature = "rwh_05")]
+use crate::raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle};
+#[cfg(feature = "rwh_06")]
+use crate::raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
 
 pub type ActionHandlerBox = Box<dyn ActionHandler + Send>;
 
@@ -14,64 +19,42 @@ pub struct Adapter {
 
 impl Adapter {
     pub fn new(
-        _: &Window,
+        window: &Window,
         source: impl 'static + FnOnce() -> TreeUpdate + Send,
         action_handler: ActionHandlerBox,
     ) -> Self {
-        let adapter = UnixAdapter::new(source, action_handler);
+        // TODO: make this function sound!
+        #[cfg(feature = "rwh_05")]
+        let display = match window.raw_display_handle() {
+            RawDisplayHandle::Wayland(handle) => handle.display,
+            RawDisplayHandle::Xlib(_) => unimplemented!(),
+            _ => unreachable!(),
+        };
+        #[cfg(feature = "rwh_06")]
+        let display = match window.display_handle().unwrap().as_raw() {
+            RawDisplayHandle::Wayland(handle) => handle.display.as_ptr(),
+            RawDisplayHandle::Xlib(_) => unimplemented!(),
+            _ => unreachable!(),
+        };
+        #[cfg(feature = "rwh_05")]
+        let surface = match window.raw_window_handle() {
+            RawWindowHandle::Wayland(handle) => handle.surface,
+            RawWindowHandle::Xlib(_) => unimplemented!(),
+            _ => unreachable!(),
+        };
+        #[cfg(feature = "rwh_06")]
+        let surface = match window.window_handle().unwrap().as_raw() {
+            RawWindowHandle::Wayland(handle) => handle.surface.as_ptr(),
+            RawWindowHandle::Xlib(_) => unimplemented!(),
+            _ => unreachable!(),
+        };
+        let adapter = unsafe { UnixAdapter::new(display, surface, source, action_handler) };
         Self { adapter }
-    }
-
-    fn set_root_window_bounds(&self, outer: Rect, inner: Rect) {
-        self.adapter.set_root_window_bounds(outer, inner);
     }
 
     pub fn update_if_active(&self, updater: impl FnOnce() -> TreeUpdate) {
         self.adapter.update_if_active(updater);
     }
 
-    fn update_window_focus_state(&self, is_focused: bool) {
-        self.adapter.update_window_focus_state(is_focused);
-    }
-
-    pub fn process_event(&self, window: &Window, event: &WindowEvent) {
-        match event {
-            WindowEvent::Moved(outer_position) => {
-                let outer_position: (_, _) = outer_position.cast::<f64>().into();
-                let outer_size: (_, _) = window.outer_size().cast::<f64>().into();
-                let inner_position: (_, _) = window
-                    .inner_position()
-                    .unwrap_or_default()
-                    .cast::<f64>()
-                    .into();
-                let inner_size: (_, _) = window.inner_size().cast::<f64>().into();
-                self.set_root_window_bounds(
-                    Rect::from_origin_size(outer_position, outer_size),
-                    Rect::from_origin_size(inner_position, inner_size),
-                )
-            }
-            WindowEvent::Resized(inner_size) => {
-                let outer_position: (_, _) = window
-                    .outer_position()
-                    .unwrap_or_default()
-                    .cast::<f64>()
-                    .into();
-                let outer_size: (_, _) = window.outer_size().cast::<f64>().into();
-                let inner_position: (_, _) = window
-                    .inner_position()
-                    .unwrap_or_default()
-                    .cast::<f64>()
-                    .into();
-                let inner_size: (_, _) = inner_size.cast::<f64>().into();
-                self.set_root_window_bounds(
-                    Rect::from_origin_size(outer_position, outer_size),
-                    Rect::from_origin_size(inner_position, inner_size),
-                )
-            }
-            WindowEvent::Focused(is_focused) => {
-                self.update_window_focus_state(*is_focused);
-            }
-            _ => (),
-        }
-    }
+    pub fn process_event(&self, _window: &Window, _event: &WindowEvent) {}
 }

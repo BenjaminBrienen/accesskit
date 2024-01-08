@@ -15,7 +15,7 @@ mod platform;
 mod platform;
 
 #[cfg(all(
-    feature = "accesskit_unix",
+    feature = "accesskit_unix2",
     any(
         target_os = "linux",
         target_os = "dragonfly",
@@ -31,7 +31,7 @@ mod platform;
     target_os = "windows",
     target_os = "macos",
     all(
-        feature = "accesskit_unix",
+        feature = "accesskit_unix2",
         any(
             target_os = "linux",
             target_os = "dragonfly",
