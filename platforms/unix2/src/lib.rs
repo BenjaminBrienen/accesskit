@@ -17,20 +17,19 @@ use sctk::reexports::{
     },
 };
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     ffi::c_void,
     os::unix::io::AsFd,
     sync::{Arc, Mutex},
 };
-use wayland_protocols::wp::accessibility::v1::client::wp_accessibility_provider_v1::WpAccessibilityProviderV1;
+use wayland_protocols::wp::a11y::v1::client::wp_a11y_updates_v1::WpA11yUpdatesV1;
 
 mod state;
 mod worker;
 
 pub struct Adapter {
-    surface: WlSurface,
     request_tx: Sender<worker::Command>,
-    instances: Arc<Mutex<HashMap<u32, WpAccessibilityProviderV1>>>,
+    update_receivers: Arc<Mutex<HashSet<WpA11yUpdatesV1>>>,
     worker_thread: Option<std::thread::JoinHandle<()>>,
 }
 
@@ -57,20 +56,19 @@ impl Adapter {
             unsafe { ObjectId::from_ptr(&WL_SURFACE_INTERFACE, surface.cast()) }.unwrap();
         let surface = WlSurface::from_id(&connection, surface_id).unwrap();
         let (request_tx, request_rx) = channel::channel();
-        let instances = Arc::new(Mutex::new(HashMap::new()));
+        let update_receivers = Arc::new(Mutex::new(HashSet::new()));
         let worker_thread = worker::spawn(
             connection,
-            surface.clone(),
+            surface,
             source,
             action_handler,
             request_rx,
-            Arc::clone(&instances),
+            Arc::clone(&update_receivers),
         );
 
         Self {
-            surface,
             request_tx,
-            instances,
+            update_receivers,
             worker_thread,
         }
     }
@@ -80,8 +78,8 @@ impl Adapter {
     pub fn update_if_active(&self, update_factory: impl FnOnce() -> TreeUpdate) {
         use rustix::pipe::{pipe_with, PipeFlags};
 
-        let instances = self.instances.lock().unwrap();
-        if instances.is_empty() {
+        let receivers = self.update_receivers.lock().unwrap();
+        if receivers.is_empty() {
             return;
         }
         let update = update_factory();
@@ -89,7 +87,7 @@ impl Adapter {
         self.request_tx
             .send(worker::Command::UpdateTree(update))
             .unwrap();
-        for instance in instances.values() {
+        for receiver in receivers.iter() {
             let (read_fd, write_fd) = pipe_with(PipeFlags::CLOEXEC).unwrap();
             self.request_tx
                 .send(worker::Command::WriteUpdate(
@@ -97,7 +95,7 @@ impl Adapter {
                     Arc::clone(&serialized),
                 ))
                 .unwrap();
-            instance.update(&self.surface, read_fd.as_fd());
+            receiver.send(read_fd.as_fd());
         }
     }
 

@@ -19,17 +19,19 @@ use sctk::{
             globals::GlobalList, protocol::wl_surface::WlSurface, Connection, Dispatch, QueueHandle,
         },
     },
-    registry::{ProvidesRegistryState, RegistryHandler, RegistryState},
+    registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
 };
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     io::{ErrorKind, Read, Write},
     os::unix::io::{AsFd, AsRawFd, OwnedFd, RawFd},
     sync::{Arc, Mutex},
 };
-use wayland_protocols::wp::accessibility::v1::client::wp_accessibility_provider_v1::{
-    Event, WpAccessibilityProviderV1,
+use wayland_protocols::wp::a11y::v1::client::{
+    wp_a11y_manager_v1::{Event as ManagerEvent, WpA11yManagerV1},
+    wp_a11y_surface_v1::{Event as SurfaceEvent, WpA11ySurfaceV1},
+    wp_a11y_updates_v1::{Event as UpdatesEvent, WpA11yUpdatesV1},
 };
 
 type LazyTree = Lazy<Tree, Box<dyn FnOnce() -> Tree>>;
@@ -39,20 +41,26 @@ pub(crate) struct State {
     loop_handle: LoopHandle<'static, Self>,
     pub(crate) exit: bool,
     surface: WlSurface,
+    a11y_surface: WpA11ySurfaceV1,
     tree: LazyTree,
     action_handler: Box<dyn ActionHandler + Send>,
-    instances: Arc<Mutex<HashMap<u32, WpAccessibilityProviderV1>>>,
+    update_receivers: Arc<Mutex<HashSet<WpA11yUpdatesV1>>>,
 }
 
 impl State {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         globals: &GlobalList,
+        qh: &QueueHandle<Self>,
         loop_handle: LoopHandle<'static, Self>,
         surface: WlSurface,
         source: impl 'static + FnOnce() -> TreeUpdate + Send,
         action_handler: Box<dyn ActionHandler + Send>,
-        instances: Arc<Mutex<HashMap<u32, WpAccessibilityProviderV1>>>,
+        update_receivers: Arc<Mutex<HashSet<WpA11yUpdatesV1>>>,
+        a11y_manager: WpA11yManagerV1,
     ) -> Self {
+        let a11y_surface = a11y_manager.get_a11y_surface(&surface, qh, ());
+        a11y_manager.destroy();
         let tree: LazyTree = Lazy::new(Box::new(move || Tree::new(source(), true)));
 
         Self {
@@ -60,9 +68,10 @@ impl State {
             loop_handle,
             exit: false,
             surface,
+            a11y_surface,
             tree,
             action_handler,
-            instances,
+            update_receivers,
         }
     }
 
@@ -98,6 +107,20 @@ impl State {
                     }
                 }
             });
+    }
+
+    fn handle_new_update_receiver(&mut self, receiver: WpA11yUpdatesV1) {
+        use rustix::pipe::{pipe_with, PipeFlags};
+
+        let mut receivers = self.update_receivers.lock().unwrap();
+        let tree = Lazy::force(&self.tree);
+        let update = tree.state().serialize();
+        let serialized = Arc::new(serde_json::to_vec(&update).unwrap());
+        let (read_fd, write_fd) = pipe_with(PipeFlags::CLOEXEC).unwrap();
+        self.write_update(write_fd, serialized);
+        receiver.send(read_fd.as_fd());
+        self.surface.commit();
+        receivers.insert(receiver);
     }
 
     fn handle_action_request(&mut self, fd: OwnedFd) {
@@ -139,72 +162,69 @@ impl State {
 }
 
 impl ProvidesRegistryState for State {
-    registry_handlers![State];
+    registry_handlers![];
 
     fn registry(&mut self) -> &mut RegistryState {
         &mut self.registry_state
     }
 }
 
-impl Dispatch<WpAccessibilityProviderV1, ()> for State {
+delegate_registry!(State);
+
+impl Dispatch<WpA11yManagerV1, ()> for State {
     fn event(
-        state: &mut Self,
-        _: &WpAccessibilityProviderV1,
-        event: Event,
+        _: &mut Self,
+        _: &WpA11yManagerV1,
+        _: ManagerEvent,
         _: &(),
         _: &Connection,
         _: &QueueHandle<State>,
     ) {
-        if let Event::ActionRequest { surface, fd } = event {
-            if surface != state.surface {
-                return;
+        // No events for this interface.
+    }
+}
+
+impl Dispatch<WpA11ySurfaceV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        _: &WpA11ySurfaceV1,
+        event: SurfaceEvent,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<State>,
+    ) {
+        match event {
+            SurfaceEvent::UpdatesWanted { receiver } => {
+                state.handle_new_update_receiver(receiver);
             }
-            state.handle_action_request(fd);
+            SurfaceEvent::ActionRequest { fd } => {
+                state.handle_action_request(fd);
+            }
+            _ => (),
         }
     }
 }
 
-impl RegistryHandler<State> for State {
-    fn new_global(
+impl Dispatch<WpA11yUpdatesV1, ()> for State {
+    fn event(
         state: &mut Self,
+        receiver: &WpA11yUpdatesV1,
+        event: UpdatesEvent,
+        _: &(),
         _: &Connection,
-        qh: &QueueHandle<Self>,
-        name: u32,
-        interface: &str,
-        _: u32,
+        _: &QueueHandle<State>,
     ) {
-        use rustix::pipe::{pipe_with, PipeFlags};
-
-        if interface != "wp_accessibility_provider_v1" {
-            return;
+        if let UpdatesEvent::Unwanted = event {
+            state.update_receivers.lock().unwrap().remove(receiver);
         }
-        let instance = state.registry().bind_specific(qh, name, 1..=1, ()).unwrap();
-        let mut instances = state.instances.lock().unwrap();
-        let tree = Lazy::force(&state.tree);
-        let update = tree.state().serialize();
-        let serialized = Arc::new(serde_json::to_vec(&update).unwrap());
-        let (read_fd, write_fd) = pipe_with(PipeFlags::CLOEXEC).unwrap();
-        state.write_update(write_fd, serialized);
-        instance.update(&state.surface, read_fd.as_fd());
-        state.surface.commit();
-        instances.insert(name, instance);
-    }
-
-    fn remove_global(
-        state: &mut Self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        name: u32,
-        interface: &str,
-    ) {
-        if interface != "wp_accessibility_provider_v1" {
-            return;
-        }
-        state.instances.lock().unwrap().remove(&name);
     }
 }
 
-delegate_registry!(State);
+impl Drop for State {
+    fn drop(&mut self) {
+        self.a11y_surface.destroy();
+    }
+}
 
 unsafe fn set_non_blocking(raw_fd: RawFd) -> std::io::Result<()> {
     let flags = libc::fcntl(raw_fd, libc::F_GETFL);

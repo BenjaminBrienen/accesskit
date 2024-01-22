@@ -17,11 +17,11 @@ use sctk::reexports::{
     client::{globals::registry_queue_init, protocol::wl_surface::WlSurface, Connection},
 };
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     os::unix::io::OwnedFd,
     sync::{Arc, Mutex},
 };
-use wayland_protocols::wp::accessibility::v1::client::wp_accessibility_provider_v1::WpAccessibilityProviderV1;
+use wayland_protocols::wp::a11y::v1::client::wp_a11y_updates_v1::WpA11yUpdatesV1;
 
 use crate::state::State;
 
@@ -31,7 +31,7 @@ pub(crate) fn spawn(
     source: impl 'static + FnOnce() -> TreeUpdate + Send,
     action_handler: Box<dyn ActionHandler + Send>,
     request_rx: Channel<Command>,
-    instances: Arc<Mutex<HashMap<u32, WpAccessibilityProviderV1>>>,
+    update_receivers: Arc<Mutex<HashSet<WpA11yUpdatesV1>>>,
 ) -> Option<std::thread::JoinHandle<()>> {
     std::thread::Builder::new()
         .name("accesskit-adapter".into())
@@ -42,7 +42,7 @@ pub(crate) fn spawn(
                 source,
                 action_handler,
                 request_rx,
-                instances,
+                update_receivers,
             );
         })
         .ok()
@@ -60,10 +60,15 @@ fn worker_impl(
     source: impl 'static + FnOnce() -> TreeUpdate + Send,
     action_handler: Box<dyn ActionHandler + Send>,
     request_rx: Channel<Command>,
-    instances: Arc<Mutex<HashMap<u32, WpAccessibilityProviderV1>>>,
+    update_receivers: Arc<Mutex<HashSet<WpA11yUpdatesV1>>>,
 ) {
     let (globals, event_queue) = match registry_queue_init(&connection) {
         Ok(data) => data,
+        Err(_) => return,
+    };
+
+    let a11y_manager = match globals.bind(&event_queue.handle(), 1..=1, ()) {
+        Ok(a11y_manager) => a11y_manager,
         Err(_) => return,
     };
 
@@ -72,11 +77,13 @@ fn worker_impl(
 
     let mut state = State::new(
         &globals,
+        &event_queue.handle(),
         loop_handle.clone(),
         surface,
         source,
         action_handler,
-        instances,
+        update_receivers,
+        a11y_manager,
     );
 
     loop_handle
