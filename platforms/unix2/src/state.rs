@@ -16,7 +16,8 @@ use sctk::{
     reexports::{
         calloop::{LoopHandle, PostAction},
         client::{
-            globals::GlobalList, protocol::wl_surface::WlSurface, Connection, Dispatch, QueueHandle,
+            event_created_child, globals::GlobalList, protocol::wl_surface::WlSurface, Connection,
+            Dispatch, QueueHandle,
         },
     },
     registry::{ProvidesRegistryState, RegistryState},
@@ -30,7 +31,7 @@ use std::{
 };
 use wayland_protocols::wp::a11y::v1::client::{
     wp_a11y_manager_v1::{Event as ManagerEvent, WpA11yManagerV1},
-    wp_a11y_surface_v1::{Event as SurfaceEvent, WpA11ySurfaceV1},
+    wp_a11y_surface_v1::{Event as SurfaceEvent, WpA11ySurfaceV1, EVT_UPDATES_WANTED_OPCODE},
     wp_a11y_updates_v1::{Event as UpdatesEvent, WpA11yUpdatesV1},
 };
 
@@ -203,6 +204,10 @@ impl Dispatch<WpA11ySurfaceV1, ()> for State {
             _ => (),
         }
     }
+
+    event_created_child!(State, WpA11ySurfaceV1, [
+        EVT_UPDATES_WANTED_OPCODE => (WpA11yUpdatesV1, ())
+    ]);
 }
 
 impl Dispatch<WpA11yUpdatesV1, ()> for State {
