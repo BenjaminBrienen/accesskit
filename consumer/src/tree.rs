@@ -110,6 +110,7 @@ impl State {
                 }
                 for child_id in node_state.data.children().iter() {
                     if !seen_child_ids.contains(child_id) {
+                        println!("removing {:?}, apparently no longer a child of {:?}", *child_id, node_id);
                         orphans.insert(*child_id);
                     }
                 }
@@ -155,6 +156,7 @@ impl State {
                 to_remove.insert(id);
                 let node = nodes.get(&id).unwrap();
                 for child_id in node.data.children().iter() {
+                    println!("removing {:?} because it's a child of {:?} which is being removed", *child_id, id);
                     traverse_orphan(nodes, to_remove, *child_id);
                 }
             }
@@ -268,6 +270,7 @@ pub struct Tree {
 
 impl Tree {
     pub fn new(mut initial_state: TreeUpdate, is_host_focused: bool) -> Self {
+        println!("{}", serde_json::to_string_pretty(&initial_state).unwrap());
         let Some(tree) = initial_state.tree.take() else {
             panic!("Tried to initialize the accessibility tree without a root tree. TreeUpdate::tree must be Some.");
         };
@@ -282,6 +285,7 @@ impl Tree {
     }
 
     pub fn update(&mut self, update: TreeUpdate) {
+        println!("{}", serde_json::to_string_pretty(&update).unwrap());
         self.state.update(update, self.state.is_host_focused, None);
     }
 
@@ -290,6 +294,7 @@ impl Tree {
         update: TreeUpdate,
         handler: &mut impl ChangeHandler,
     ) {
+        println!("{}", serde_json::to_string_pretty(&update).unwrap());
         let mut changes = InternalChanges::default();
         let old_state = self.state.clone();
         self.state
@@ -325,6 +330,7 @@ impl Tree {
         }
         for id in &changes.updated_node_ids {
             let old_node = old_state.node_by_id(*id).unwrap();
+            println!("trying to get new node {:?}", *id);
             let new_node = self.state.node_by_id(*id).unwrap();
             handler.node_updated(&old_node, &new_node);
         }
