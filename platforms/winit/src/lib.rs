@@ -41,14 +41,6 @@ compile_error!(
     "Both \"async-io\" (default) and \"tokio\" features cannot be enabled at the same time."
 );
 
-#[cfg(all(not(feature = "rwh_05"), not(feature = "rwh_06")))]
-compile_error!("Either \"rwh_06\" (default) or \"rwh_05\" feature must be enabled.");
-
-#[cfg(all(feature = "rwh_05", feature = "rwh_06"))]
-compile_error!(
-    "Both \"rwh_06\" (default) and \"rwh_05\" features cannot be enabled at the same time."
-);
-
 use accesskit::{ActionHandler, ActionRequest, ActivationHandler, DeactivationHandler, TreeUpdate};
 use std::sync::{Arc, Mutex};
 use winit::{
@@ -56,13 +48,6 @@ use winit::{
     event_loop::EventLoopProxy,
     window::{Window, WindowId},
 };
-
-#[cfg(feature = "rwh_05")]
-#[allow(unused)]
-use rwh_05 as raw_window_handle;
-#[cfg(feature = "rwh_06")]
-#[allow(unused)]
-use rwh_06 as raw_window_handle;
 
 mod platform_impl;
 
