@@ -45,7 +45,7 @@ use accesskit::{ActionHandler, ActionRequest, ActivationHandler, DeactivationHan
 use std::sync::{Arc, Mutex};
 use winit::{
     event::WindowEvent as WinitWindowEvent,
-    event_loop::EventLoopProxy,
+    event_loop::{ActiveEventLoop, EventLoopProxy},
     window::{Window, WindowId},
 };
 
@@ -135,10 +135,11 @@ impl Adapter {
     /// consider using [`Adapter::with_direct_handlers`] or
     /// [`Adapter::with_mixed_handlers`] instead.
     pub fn with_event_loop_proxy(
+        event_loop: &ActiveEventLoop,
         window: &Window,
-        proxy: EventLoopProxy,
         events: Arc<Mutex<Vec<Event>>>,
     ) -> Self {
+        let proxy = event_loop.create_proxy();
         let window_id = window.id();
         let activation_handler = WinitActivationHandler {
             window_id,
@@ -156,6 +157,7 @@ impl Adapter {
             proxy,
         };
         Self::with_direct_handlers(
+            event_loop,
             window,
             activation_handler,
             action_handler,
@@ -177,12 +179,14 @@ impl Adapter {
     /// the first update. However, remember that each of these handlers may be
     /// called on any thread, depending on the underlying platform adapter.
     pub fn with_direct_handlers(
+        event_loop: &ActiveEventLoop,
         window: &Window,
         activation_handler: impl 'static + ActivationHandler + Send,
         action_handler: impl 'static + ActionHandler + Send,
         deactivation_handler: impl 'static + DeactivationHandler + Send,
     ) -> Self {
         let inner = platform_impl::Adapter::new(
+            event_loop,
             window,
             activation_handler,
             action_handler,
@@ -204,11 +208,12 @@ impl Adapter {
     /// return the initial tree synchronously. Remember that the thread on which
     /// the activation handler is called is platform-dependent.
     pub fn with_mixed_handlers(
+        event_loop: &ActiveEventLoop,
         window: &Window,
         activation_handler: impl 'static + ActivationHandler + Send,
-        proxy: EventLoopProxy,
         events: Arc<Mutex<Vec<Event>>>,
     ) -> Self {
+        let proxy = event_loop.create_proxy();
         let window_id = window.id();
         let action_handler = WinitActionHandler {
             window_id,
@@ -221,6 +226,7 @@ impl Adapter {
             proxy,
         };
         Self::with_direct_handlers(
+            event_loop,
             window,
             activation_handler,
             action_handler,

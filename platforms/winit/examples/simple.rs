@@ -10,7 +10,7 @@ use std::{
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, KeyEvent, WindowEvent},
-    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
+    event_loop::{ActiveEventLoop, EventLoop},
     keyboard::Key,
     window::{Window, WindowId},
 };
@@ -150,15 +150,13 @@ impl WindowState {
 }
 
 struct Application {
-    event_loop_proxy: EventLoopProxy,
     accesskit_events: Arc<Mutex<Vec<AccessKitEvent>>>,
     window: Option<WindowState>,
 }
 
 impl Application {
-    fn new(event_loop_proxy: EventLoopProxy) -> Self {
+    fn new() -> Self {
         Self {
-            event_loop_proxy,
             accesskit_events: Arc::new(Mutex::new(Vec::new())),
             window: None,
         }
@@ -171,8 +169,8 @@ impl Application {
 
         let window = event_loop.create_window(window_attributes)?;
         let adapter = Adapter::with_event_loop_proxy(
+            &event_loop,
             &window,
-            self.event_loop_proxy.clone(),
             Arc::clone(&self.accesskit_events),
         );
         window.set_visible(true);
@@ -267,7 +265,7 @@ impl ApplicationHandler for Application {
 }
 
 fn run(event_loop: EventLoop) {
-    let mut app = Application::new(event_loop.create_proxy());
+    let mut app = Application::new();
     event_loop.run_app(&mut app).unwrap();
 }
 
